@@ -1,4 +1,4 @@
-.features {
+/* .features {
   display: flex;
   align-items: center;
   padding: 2rem 0;
@@ -8,4 +8,16 @@
 .featureSvg {
   height: 200px;
   width: 200px;
+} */
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 2rem;
+  padding: 4rem 0;
+}
+
+.featureSvg {
+  height: 120px;
+  width: 120px;
+  margin-bottom: 1rem;
 }

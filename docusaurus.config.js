@@ -10,7 +10,7 @@ import {themes as prismThemes} from 'prism-react-renderer';
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: 'My Site',
+  title: 'Some Docs',
   tagline: 'Dinosaurs are cool',
   favicon: 'img/favicon.ico',
 
@@ -23,12 +23,12 @@ const config = {
   url: 'https://J-Houghton.github.io',
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
-  baseUrl: '/Oracle-Docs/',
+  baseUrl: '/Jakes-Docs/',
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
   organizationName: 'J-Houghton', // Usually your GitHub org/user name.
-  projectName: 'Oracle-Docs', // Usually your repo name.
+  projectName: 'Jakes-Docs', // Usually your repo name.
 
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
@@ -51,28 +51,24 @@ const config = {
           sidebarPath: './sidebars.js',
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
-          editUrl:
-            'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
-        },
-        blog: {
-          showReadingTime: true,
-          feedOptions: {
-            type: ['rss', 'atom'],
-            xslt: true,
-          },
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl:
-            'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
-          // Useful options to enforce blogging best practices
-          onInlineTags: 'warn',
-          onInlineAuthors: 'warn',
-          onUntruncatedBlogPosts: 'warn',
-        },
+          editUrl:undefined,
+        }, 
         theme: {
           customCss: './src/css/custom.css',
         },
       }),
+    ],
+  ], 
+  plugins: [
+    [
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'oracleDocs',
+        path: 'docs-oracle',
+        routeBasePath: 'docs-oracle',
+        sidebarPath: require.resolve('./sidebars.oracle.js'),
+        editCurrentVersion: false,
+      },
     ],
   ],
 
@@ -82,26 +78,27 @@ const config = {
       // Replace with your project's social card
       image: 'img/docusaurus-social-card.jpg',
       navbar: {
-        title: 'My Site',
+        title: 'Docs',
         logo: {
           alt: 'My Site Logo',
           src: 'img/logo.svg',
         },
         items: [
-          {
+          { type: 'docSidebar', sidebarId: 'tutorialSidebar', position: 'left', label: 'Tutorial' }, 
+          { 
             type: 'docSidebar',
-            sidebarId: 'tutorialSidebar',
+            sidebarId: 'oracleSidebar',
+            docsPluginId: 'oracleDocs',
             position: 'left',
-            label: 'Tutorial',
+            label: 'Oracle Docs',
           },
-          {to: '/blog', label: 'Blog', position: 'left'},
           {
-            href: 'https://github.com/facebook/docusaurus',
+            href: 'https://github.com/J-Houghton/Oracle-Docs',
             label: 'GitHub',
             position: 'right',
           },
         ],
-      },
+      }, 
       footer: {
         style: 'dark',
         links: [
@@ -110,42 +107,42 @@ const config = {
             items: [
               {
                 label: 'Tutorial',
-                to: '/docs/intro',
+                to: '/tutorial/intro',
               },
             ],
           },
           {
-            title: 'Community',
+            title: 'List 1',
             items: [
               {
-                label: 'Stack Overflow',
-                href: 'https://stackoverflow.com/questions/tagged/docusaurus',
+                label: 'Item 1',
+                href: '#',
               },
               {
-                label: 'Discord',
-                href: 'https://discordapp.com/invite/docusaurus',
+                label: 'Item 2',
+                href: '#',
               },
               {
-                label: 'X',
-                href: 'https://x.com/docusaurus',
+                label: 'Item 3',
+                href: '#',
               },
             ],
           },
           {
-            title: 'More',
+            title: 'List 2',
             items: [
               {
-                label: 'Blog',
-                to: '/blog',
+                label: 'Item 1',
+                href: '#',
               },
               {
                 label: 'GitHub',
-                href: 'https://github.com/facebook/docusaurus',
+                href: 'https://github.com/J-Houghton/Oracle-Docs',
               },
             ],
           },
         ],
-        copyright: `Copyright © ${new Date().getFullYear()} My Project, Inc. Built with Docusaurus.`,
+        copyright: `Copyright © ${new Date().getFullYear()} J-Houghton, Inc. Built with Docusaurus.`,
       },
       prism: {
         theme: prismThemes.github,

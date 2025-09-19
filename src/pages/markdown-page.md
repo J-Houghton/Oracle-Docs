@@ -1,7 +1,8 @@
 ---
-title: Markdown page example
+title: About Me
 ---
 
-# Markdown page example
+# About Me
 
-You don't need React to write simple standalone pages.
+This is a sample standalone page.  
+Write a short bio or intro here.
