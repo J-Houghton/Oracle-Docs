@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkoracle_docs=self.webpackChunkoracle_docs||[]).push([[1903],{1912:s=>{s.exports=JSON.parse('{"blogBasePath":"/Oracle-Docs/blog","blogTitle":"Blog","authorsListPath":"/Oracle-Docs/blog/authors"}')}}]);

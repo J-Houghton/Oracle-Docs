@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkoracle_docs=self.webpackChunkoracle_docs||[]).push([[5505],{1407:e=>{e.exports=JSON.parse('{"metadata":{"permalink":"/Oracle-Docs/blog","page":1,"postsPerPage":10,"totalPages":1,"totalCount":4,"blogDescription":"Blog","blogTitle":"Blog"}}')}}]);
