@@ -48,7 +48,7 @@ const config = {
       /** @type {import('@docusaurus/preset-classic').Options} */
       ({
         docs: {
-          sidebarPath: './sidebars.js',
+          sidebarPath: './sidebars.js', 
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
           editUrl:undefined,
@@ -66,7 +66,7 @@ const config = {
         id: 'oracleDocs',
         path: 'docs-oracle',
         routeBasePath: 'docs-oracle',
-        sidebarPath: require.resolve('./sidebars.oracle.js'),
+        sidebarPath: require.resolve('./sidebars.oracle.js'), 
         editCurrentVersion: false,
       },
     ],
