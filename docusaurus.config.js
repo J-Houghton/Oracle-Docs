@@ -23,12 +23,12 @@ const config = {
   url: 'https://J-Houghton.github.io',
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
-  baseUrl: '/J-Houghton/',
+  baseUrl: '/Oracle-Docs/',
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
   organizationName: 'J-Houghton', // Usually your GitHub org/user name.
-  projectName: 'Jakes-Docs', // Usually your repo name.
+  projectName: 'Oracle-Docs', // Usually your repo name.
 
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
@@ -107,7 +107,7 @@ const config = {
             items: [
               {
                 label: 'Tutorial',
-                to: '/tutorial/intro',
+                to: '/docs/intro',
               },
             ],
           },
