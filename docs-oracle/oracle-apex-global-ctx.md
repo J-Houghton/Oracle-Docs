@@ -9,6 +9,8 @@ sidebar_position: 2
 
 # Parameterized Views in Oracle 19c and APEX 23.1 Using **Global Application Context** 
 
+Note: [Sql Macro vs Global Context](./sqlMacro-vs-global-ctx.md)
+
 ## 1) Goal
 
 Create a page/user-specific filters to apply across pooled DB sessions and Ajax requests. Use a **global application context** keyed by a canonical `client_id`. Query with `SYS_CONTEXT` in views or SQL, and set/clear context at each APEX request. 
