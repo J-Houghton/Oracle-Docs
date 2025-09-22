@@ -7,7 +7,7 @@ sidebar_position: 2
 
 <detail>Initial Draft, I have an issue where on the very first Page Subimt of run report, the parameter value from APEX page item isn't accessable, I suspect this is due to needing before to set context using Page header on the very first load of the page; Will add debug and behavior later, test in your app. </detail>
 
-# Parameterized Views in Oracle 19c+ and APEX 23.1+ Using **Global Application Context** 
+# Parameterized Views in Oracle 19c and APEX 23.1 Using **Global Application Context** 
 
 ## 1) Goal
 
@@ -68,20 +68,22 @@ Put this once per application: **Shared Components → Security Attributes → D
 
 **Initialization PL/SQL Code** 
 ```plsql
+-- Update XXX to actual page_id 
 DECLARE  
   client_id VARCHAR2(64) := :APP_USER || ':AppName:XXX';
 BEGIN
     IF :APP_PAGE_ID = XXX and :PXXX_SalaryIn IS NOT NULL THEN 
-      test_app_ctx_helper_pkg.set_parameter_value(client_id,'PXXX_SalaryIn',:PXXX_SalaryIn);
+      test_app_ctx_helper_pkg.set_parameter_value(client_id,'P_SalaryIn',:PXXX_SalaryIn);
   END IF;  
 EXCEPTION
     WHEN OTHERS THEN
-        apex_application.g_notIFication := '*** APEX ERROR > Database Session|Initialization PL/SQL Code: '||SQLERRM; 
+        apex_application.g_notification := '*** APEX ERROR > Database Session|Initialization PL/SQL Code: '||SQLERRM; 
 END;
 ```
 
 **Cleanup PL/SQL Code** 
 ```plsql
+-- Update XXX to actual page_id 
 DECLARE
   client_id VARCHAR2(64) := :APP_USER || ':AppName:XXX';
 BEGIN      
@@ -89,7 +91,7 @@ BEGIN
     -- When no attribute is defined, all ctx for that client_id is cleared 
 EXCEPTION 
     WHEN OTHERS THEN 
-        apex_application.g_notIFication := '*** APEX ERROR > Database Session|Cleanup PL/SQL Code: '||SQLERRM;
+        apex_application.g_notification := '*** APEX ERROR > Database Session|Cleanup PL/SQL Code: '||SQLERRM;
 END;
 ```
 
@@ -125,12 +127,13 @@ These attributes run at the start and end of every APEX request, including Ajax.
 ### 6.2 Parameterized view + APEX page item
 
 ```sql
+-- 
 CREATE OR REPLACE VIEW Custom_HR_CTX_V AS
 SELECT e.*
 FROM   hr.employees e
-WHERE  e.salary = TO_NUMBER(SYS_CONTEXT('CUSTOM_APP_CTX','P_SALARY_IN')); 
+WHERE  e.salary = TO_NUMBER(SYS_CONTEXT('TEST_APP_CTX','P_SALARY_IN')); 
 ```
-Use the view in a Classic/IR region: `SELECT * FROM CUSTOM_APP_CTX`. On report run or page submit should provide/save `P10_SALARY_IN`'s value in DB sessison.  
+Use the view in a Classic/IR region: `SELECT * FROM Custom_HR_CTX_V`. On report run or page submit should provide/save `P10_SALARY_IN`'s value in DB sessison.  
 
 ### 6.3 Ajax check 
 Filter or Sort the Classic/IR region. The Initialization PL/SQL runs each Ajax request, so the same context value is read by the view. 
@@ -167,7 +170,7 @@ Filter or Sort the Classic/IR region. The Initialization PL/SQL runs each Ajax r
 
 1.  **ORA-01031** while setting context: ensure calls run **inside** the package named in `CREATE CONTEXT ... USING`. Create context first, then package. ([CREATE_CONTEXT Doc](https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/CREATE-CONTEXT.html))
     
-2.  **Not visible in `GLOBAL_CONTEXT`**: set `CLIENT_IDENTIFIER` (either in your setter or earlier in the request). ([GLOBAL_CONTEXT Doc](https://docs.oracle.com/en/database/oracle/oracle-database/19/refrn/GLOBAL_CONTEXT.html))
+2.  **Not visible in `V$GLOBALCONTEXT`**: set `CLIENT_IDENTIFIER` (either in your setter or earlier in the request). ([GLOBAL_CONTEXT Doc](https://docs.oracle.com/en/database/oracle/oracle-database/19/refrn/GLOBAL_CONTEXT.html))
     
 3.  **Ajax didn’t pick up value**: put logic in **Security Attributes → Database Session → Initialization PL/SQL Code**, not in a page “Before Header” process. Before Header is only ran on Page Submit.  
 4.  **Case sensitivity**: `client_id` and attribute names are case-sensitive where documented; use `UPPER` for attributes consistently.
