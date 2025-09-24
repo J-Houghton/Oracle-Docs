@@ -42,7 +42,7 @@ Return active scheduled concurrent requests with human-readable schedule text pl
               r.phase_code = 'P'
               AND NVL(c.date2, SYSDATE + 1) > SYSDATE
               AND c.class_type IS NOT NULL
-              AND UPPER(NVL(r.description, p.user_concurrent_program_name)) LIKE 'KSU%'
+              AND UPPER(NVL(r.description, p.user_concurrent_program_name)) LIKE 'NAME_PREFIX%'
       ),
       dates AS ( -- build day-of-month list once; correlate by requestId(key-preserved)
           SELECT
