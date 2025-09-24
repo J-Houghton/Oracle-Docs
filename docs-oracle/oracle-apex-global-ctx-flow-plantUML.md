@@ -1,7 +1,7 @@
 ---
 id: oracle-apex-global-ctw-plantuml
 title: Oralce APEX Global CTX Process Diagram
-sidebar_position: 2
+sidebar_position: 3
 --- 
 
 # PlantUml Flow: APEX request setting and using a GLOBAL application context
