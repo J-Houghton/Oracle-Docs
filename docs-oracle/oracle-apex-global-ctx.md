@@ -1,11 +1,8 @@
 ---
 id: oracle-apex-global-ctw
-title: Set and View Global Contexts in APEX and Oracle DB
+title: Request-Scoped Global Context in APEX 23.1 (Oracle 19c+)
 sidebar_position: 2
 --- 
-
-
-<detail>Initial Draft, I have an issue where on the very first Page Subimt of run report, the parameter value from APEX page item isn't accessable, I suspect this is due to needing before to set context using Page header on the very first load of the page; Will add debug and behavior later, test in your app. </detail>
 
 # Parameterized Views in Oracle 19c and APEX 23.1 Using **Global Application Context** 
 
@@ -13,7 +10,7 @@ Note: [Sql Macro vs Global Context](./sqlMacro-vs-global-ctx.md)
 
 ## 1) Goal
 
-Create a page/user-specific filters to apply across pooled DB sessions and Ajax requests. Use a **global application context** keyed by a canonical `client_id`. Query with `SYS_CONTEXT` in views or SQL, and set/clear context at each APEX request. 
+Apply per-user, per-page filters across pooled DB sessions and Ajax. Use a **global application context** keyed by a canonical `client_id`. Read via `SYS_CONTEXT`, set in APEX request init, clear on session end.
 **Note:** _Before Header_ and _After Regions_ processes **does not work** for pages' **Ajax** (no filter/sort/partial refresh) requests. For Ajax or mixed flows, use **Security Attributes → Database Session**. 
 APEX docs specify per-request Initialization/Cleanup hooks; Before Header runs during page render only.
 
@@ -98,6 +95,58 @@ END;
 ```
 
 These attributes run at the start and end of every APEX request, including Ajax.  
+
+### 5.1 APEX request lifecycle as middleware (render vs submit) 
+
+Think of each browser interaction as a pipeline. Initialization and cleanup behave like **pre-request** and **post-request middleware**.
+
+**Page rendering cycle (GET / “Show”):**
+- **Pre-rendering processes:** run before APEX builds HTML. Same DB session that renders the page.  
+- **Post-rendering processes:** run after HTML is generated, still the same HTTP request. Useful for cookies/headers.
+
+**Page processing cycle (POST / “Submit”):**
+- Separate HTTP request. User submits form.  
+- APEX **updates session state** with posted values.  
+- **On Submit** processes run.  
+- A fresh render cycle executes afterward (pre-render, render, post-render).
+
+**Key point:** Pre/Post rendering belong to the **render** cycle only. Submit and its processes belong to a **separate** request.  
+Because of pooling, the physical DB session can change between requests, but the **APEX session context** persists, so treat each request as independent middleware execution.
+
+---
+
+### 5.3 Initial load configuration for the target page (no items yet) 
+
+**Goal**: seed a default value into the **global application context** on the **initial GET** when page items are NULL, so that the first report execution and any Ajax calls see a valid filter. Do not change existing logic; add the following.
+
+**Note**: Another approach could be using server side conditions to hide the reports till page item is submitted. 
+
+### Initialization PL/SQL Code — add-on block for first load
+Place this block **before** any existing item-based checks in  
+**Page → Before Header → Process → Execute PL/SQL Code**.
+
+```plsql
+-- BEGIN: Initial-load seed   
+if :APP_PAGE_ID = XXX then
+    DECLARE  
+        client_id VARCHAR2(64) := :APP_USER || ':AppName:XXX';
+        defaultSalary NUMBER;
+    BEGIN
+        -- set default var
+        -- select col into defaultSalary from table; 
+        defaultSalary := 1000;
+        IF :APP_PAGE_ID = XXX and :PXXX_SalaryIn IS NOT NULL THEN 
+            test_app_ctx_helper_pkg.set_parameter_value(client_id,'P_SalaryIn',defaultSalary);
+        END IF;  
+    EXCEPTION
+        WHEN OTHERS THEN
+            apex_application.g_notification := '*** APEX ERROR > Database Session|Initialization PL/SQL Code: '||SQLERRM; 
+    END;
+END;
+-- END: Initial-load seed
+```
+
+---
  
 
 ## 6) Minimal Verification (DB, APEX Page, Ajax)
