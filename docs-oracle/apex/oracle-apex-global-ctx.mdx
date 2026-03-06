@@ -20,7 +20,7 @@ import Verification  from '!!raw-loader!@site/code/apex-global-context/verificat
 # Request-Scoped Global Context in APEX 23.1 (Oracle 19c+)
 
 :::info Related
-See [SQL Macros vs Global Context](./sqlMacro-vs-global-ctx) for a comparison of approaches.
+See [SQL Macros vs Global Context](../db/sqlMacro-vs-global-ctx) for a comparison of approaches.
 :::
 
 Apply per-user, per-page filters across pooled DB sessions and Ajax requests using a **Global Application Context** keyed by a canonical `client_id`. Values are read via `SYS_CONTEXT`, set in an APEX request initializer, and cleared on cleanup.
