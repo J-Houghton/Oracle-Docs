@@ -1,0 +1,8 @@
+{
+    "label": "Oracle DB",
+    "position": 4,
+    "collapsible": true,
+    "collapsed": false,
+    "description": "Oracle Database SQL, PL/SQL patterns, and developer utilities."
+  }
+  

@@ -14,20 +14,23 @@ const config = {
   tagline: 'Dinosaurs are cool',
   favicon: 'img/favicon.ico',
 
+  markdown: { mermaid: true },
+  themes: ['@docusaurus/theme-mermaid'],
+
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
     v4: true, // Improve compatibility with the upcoming Docusaurus v4
   },
 
   // Set the production url of your site here
-  url: 'https://J-Houghton.github.io',
+  url: 'https://someUser.github.io',
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: '/Oracle-Docs/',
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
-  organizationName: 'J-Houghton', // Usually your GitHub org/user name.
+  organizationName: 'someUser', // Usually your GitHub org/user name.
   projectName: 'Oracle-Docs', // Usually your repo name.
 
   onBrokenLinks: 'throw',
@@ -60,6 +63,7 @@ const config = {
     ],
   ], 
   plugins: [
+    require.resolve('docusaurus-plugin-image-zoom'),
     [
       '@docusaurus/plugin-content-docs',
       {
@@ -74,7 +78,18 @@ const config = {
 
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
-    ({
+    ({ 
+      zoom: {
+        selector: '.markdown :not(em) > img, .mermaid svg',
+        background: {
+            light: 'rgb(255, 255, 255)',
+            dark: 'rgb(50, 50, 50)',
+        },
+        config: {
+            margin: 24,
+        },
+    },
+    
       // Replace with your project's social card
       image: 'img/docusaurus-social-card.jpg',
       navbar: {
@@ -84,7 +99,7 @@ const config = {
           src: 'img/logo.svg',
         },
         items: [
-          { type: 'docSidebar', sidebarId: 'tutorialSidebar', position: 'left', label: 'Tutorial' }, 
+        // { type: 'docSidebar', sidebarId: 'tutorialSidebar', position: 'left', label: 'Tutorial' }, 
           { 
             type: 'docSidebar',
             sidebarId: 'oracleSidebar',
@@ -93,7 +108,7 @@ const config = {
             label: 'Oracle Docs',
           },
           {
-            href: 'https://github.com/J-Houghton/Oracle-Docs',
+            href: 'https://github.com/someUser/Oracle-Docs',
             label: 'GitHub',
             position: 'right',
           },
@@ -106,47 +121,28 @@ const config = {
             title: 'Docs',
             items: [
               {
-                label: 'Tutorial',
-                to: '/docs/intro',
+                label: 'Oracle Architecture',
+                to: '/docs-oracle/intro', // Points to oracle docs
               },
             ],
           },
           {
-            title: 'List 1',
+            title: 'Community',
             items: [
-              {
-                label: 'Item 1',
-                href: '#',
-              },
-              {
-                label: 'Item 2',
-                href: '#',
-              },
-              {
-                label: 'Item 3',
-                href: '#',
-              },
-            ],
-          },
-          {
-            title: 'List 2',
-            items: [
-              {
-                label: 'Item 1',
-                href: '#',
-              },
               {
                 label: 'GitHub',
-                href: 'https://github.com/J-Houghton/Oracle-Docs',
+                href: 'https://github.com/someUser/Oracle-Docs',
               },
             ],
           },
         ],
-        copyright: `Copyright © ${new Date().getFullYear()} J-Houghton, Inc. Built with Docusaurus.`,
+        
+        copyright: `Copyright © ${new Date().getFullYear()} someUser, Inc. Built with Docusaurus.`,
       },
       prism: {
         theme: prismThemes.github,
         darkTheme: prismThemes.dracula,
+        additionalLanguages: ['plsql'],
       },
     }),
 };

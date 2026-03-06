@@ -4,8 +4,9 @@ import plantumlEncoder from 'plantuml-encoder';
 export default function PlantUML({
   children,
   server = 'https://www.plantuml.com/plantuml',
-  format = 'svg',
+  format = 'png',
   className,
+  style,
 }) {
   const text =
     Array.isArray(children)
@@ -14,7 +15,14 @@ export default function PlantUML({
       ? children
       : String(children);
   const encoded = plantumlEncoder.encode(text.trim());
-
   const src = `${server}/${format}/${encoded}`;
-  return <img src={src} alt="PlantUML diagram" className={className} />;
+
+  return (
+    <img
+      src={src}
+      alt="PlantUML diagram"
+      className={className}
+      style={{ maxWidth: '100%', display: 'block', ...style }}
+    />
+  );
 }

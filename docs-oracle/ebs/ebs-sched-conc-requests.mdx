@@ -1,0 +1,139 @@
+---
+id: ebs-sched-conc-requests
+title: EBS R12 — Scheduled Concurrent Requests Query
+description: SQL query to return active scheduled concurrent requests in EBS R12.2.10 with human-readable schedule text, last/next run metadata, and schedule type decoding.
+sidebar_position: 5
+tags: [oracle, ebs, sql, concurrent-requests, r12]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+import CodeBlock     from '@theme/CodeBlock';
+import schedReqQuery     from '!!raw-loader!@site/code/ebs-concurrent-requests/scheduled_requests.sql';
+
+# EBS R12 — Scheduled Concurrent Requests Query
+
+Returns active scheduled concurrent requests in **EBS R12.2.10** with human-readable schedule text and last/next run metadata. Useful for auditing what is scheduled, when it last ran, and what its recurrence pattern is.
+
+Exploring set ups of fully custom scheduled job tracker, summary view updated dynamically as new custom jobs are scheduled, errors or missed run. 
+
+## Prerequisites
+
+:::tip Access Required
+- Read access to `APPS` schema tables: `FND_CONCURRENT_REQUESTS`, `FND_CONC_RELEASE_CLASSES`, `FND_CONCURRENT_PROGRAMS_TL`, `FND_USER`, `FND_LOOKUP_VALUES`
+- Update the `NAME_PREFIX%` filter constant before running (see [Filtering](#filtering))
+:::
+
+## Query
+
+<details className="codeDetails">
+  <summary>Show Full SQL</summary>
+
+
+  <CodeBlock language="sql">{schedReqQuery}</CodeBlock> 
+
+</details>
+
+## Output Columns
+
+| Column | Source | Notes |
+|---|---|---|
+| `requestId` | `r.request_id` | |
+| `concProg` | `description + (programName)` | If description exists it's a request set; otherwise just `programName` |
+| `requester` | `s.user_name` | The user who scheduled the request |
+| `lastRunDate` | `NVL(actual_completion_date, last_update_date)` | Falls back to `last_update_date` if not yet completed |
+| `nextRunDate` | `r.requested_start_date` | Next scheduled execution time |
+| `lastRunStatus` | `flvStatus.meaning` | Decoded from `CP_STATUS_CODE` lookup |
+| `scheduleType` | Decoded `c.class_type` | `Periodic`, `On Specific Days`, `Advanced`, or raw value |
+| `schedule` | Built from `c.class_info` | Human-readable narrative (see [Schedule Decoding](#schedule-decoding)) |
+
+## Data Sources
+
+| Table | Alias | Join Condition |
+|---|---|---|
+| `FND_CONCURRENT_REQUESTS` | `r` | Base table |
+| `FND_CONC_RELEASE_CLASSES` | `c` | `application_id` + `release_class_id` |
+| `FND_CONCURRENT_PROGRAMS_TL` | `p` | `concurrent_program_id` |
+| `FND_USER` | `s` | `requested_by = user_id` |
+| `FND_LOOKUP_VALUES` | `flvStatus` | `CP_STATUS_CODE`, enabled rows with `start_date_active` only |
+
+## Filtering  
+
+:::note Update Before Running
+Change `NAME_PREFIX%` in the `WHERE` clause to match your program name prefix. Use `'%'` to return all scheduled requests with no name filter.
+:::
+
+| Filter | Purpose |
+|---|---|
+| `r.phase_code = 'P'` | Pending (scheduled in manager), not already running or completed |
+| `NVL(c.date2, SYSDATE + 1) > SYSDATE` | Release class is still active/valid |
+| `c.class_type IS NOT NULL` | Request has a defined schedule |
+| `UPPER(NVL(...)) LIKE 'NAME_PREFIX%'` | Scope to your custom programs; falls back to program name if description is null |
+
+## `classInfo` Reference
+
+`classInfo` is a **VARCHAR2 bit string** stored by EBS to encode schedule patterns. It is always processed as character data — never cast to a number.
+
+| Bit Position | Length | Meaning | Example |
+|---|---|---|---|
+| 1–31 | 31 | Specific days of month | `1` at position 5 = 5th of month |
+| 32 | 1 | Last day of month | `1` = enabled |
+| 33–39 | 7 | Days of week `Su Mo Tu We Th Fr Sa` | `0111110` = every weekday |
+| 40–44 | 5 | Week of month `1st–5th` | `10100` = 1st and 3rd week |
+| 45–56 | 12 | Months `Jan–Dec` | `111111111111` = every month |
+
+:::caution Common Pitfall: "First day shows as 16"
+This happens when code numerically casts the bit string — leading zeros are dropped, shifting all positions. This query uses `SUBSTR(...) = '1'` and `INSTR(..., '1')` on character data exclusively, so positions are always accurate.
+:::
+
+## Schedule Decoding 
+
+<Tabs>
+  <TabItem value="periodic" label="Periodic (P)" default>
+
+`classInfo` format: `interval:unit:mode`
+
+| Token | Values | Meaning |
+|---|---|---|
+| `interval` | Number | How often |
+| `unit` | `N` `H` `D` `M` | Minutes, Hours, Days, Months |
+| `mode` | `S` `C` | From start of prior run / From completion of prior run |
+
+**Output example:** `Repeat every 4 hours from the completion of the prior run`
+
+  </TabItem>
+  <TabItem value="specific" label="Specific Days (S)">
+
+Assembled in this order — each piece is optional and concatenated:
+
+1. **Explicit dates** — if any of bits 1–31 are set → `Dates: 1, 5, 20`
+2. **Last day** — if bit 32 set → `Last day of month`
+3. **Day of week** (shortcutted first):
+   - `1111111` → `Daily`
+   - `0111110` → `Every weekday`
+   - Any other pattern → `Days of week: Mo Tu Fr`
+4. **Week of month** — only if some but not all of bits 40–44 are set → `Weeks: 1st 3rd`; omitted if `00000` (all weeks) or `11111` (all weeks)
+5. **Months** — if bits 45–56 = `111111111111` → `, Every Month`; if partial → `in Jan Mar`; if none → defaults to `, Every Month`
+
+**Output example:** `Days of week: Mo Tu We Th Fr, Every Month`
+
+  </TabItem>
+</Tabs>
+
+<details className="codeDetails">
+  <summary>Deep Dive — Performance & Extensibility</summary>
+
+### Performance Notes
+
+- The `base` CTE applies all `WHERE` filters early, minimizing rows passed to `dates` and the final `SELECT`.
+- `dates` uses a single `CONNECT BY LEVEL <= 31` cross join with `LISTAGG` — no row-by-row processing or PL/SQL.
+- All schedule decoding uses `SUBSTR`/`INSTR`/`DECODE` on character data — no type conversions or scalar subqueries.
+- `FND_LOOKUP_VALUES` is joined once with enablement and date filters inline, not as a subquery per row.
+
+### Extensibility
+
+**Locale-aware day/month names:** Replace hard-coded tokens (`'Mo '`, `'Jan '`) with a small lookup CTE joined by position index and `LISTAGG`-ed.
+
+**Duplicate status meanings:** If `FND_LOOKUP_VALUES` returns multiple rows for a `status_code` (e.g., entries like `@Normal` alongside `Normal`), wrap the join target in a subquery using `ROW_NUMBER() OVER (PARTITION BY lookup_code ORDER BY ...)` to select one canonical meaning per code. Alternatively, add `AND flvStatus.meaning NOT LIKE '@%'` as a quick filter if the `@` prefix pattern is consistent in your instance.
+
+</details>

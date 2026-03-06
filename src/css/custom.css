@@ -31,3 +31,27 @@
   --ifm-color-primary-lightest: #F6E9FF; 
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
 }
+
+/* Mermaid: scrollable container for large sequence diagrams */
+.mermaid {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Mermaid: visual boundary so diagrams don't float */
+.mermaid svg {
+  display: block;
+  max-width: none;  /* allow full width inside scroll container */
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: var(--ifm-global-radius);
+  padding: 1rem;
+}
+
+.codeDetails {
+  background: #1e1e1e;
+  border: 1px solid #444;
+}
+.codeDetails.haveMaxHeight .theme-code-block pre {
+  max-height: 500px; 
+  border-radius: 6px;
+}

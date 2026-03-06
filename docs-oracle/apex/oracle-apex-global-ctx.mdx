@@ -1,0 +1,211 @@
+---
+id: oracle-apex-global-ctx
+title: Request-Scoped Global Context in APEX
+description: How to implement per-user, per-page filters using Oracle Global Application Context across pooled DB sessions and APEX Ajax requests.
+sidebar_position: 2
+tags: [oracle, apex, global-context, plsql, 19c]
+---
+
+import Tabs          from '@theme/Tabs';
+import TabItem       from '@theme/TabItem';
+import CodeBlock     from '@theme/CodeBlock';
+import createCtx     from '!!raw-loader!@site/code/apex-global-context/context_create.sql';
+import PkgSpec       from '!!raw-loader!@site/code/apex-global-context/xxx_app_ctx_helper_pkg_spec.plsql';
+import PkgBody       from '!!raw-loader!@site/code/apex-global-context/xxx_app_ctx_helper_pkg_body.plsql';
+import ApexInit      from '!!raw-loader!@site/code/apex-global-context/apex_init.plsql';
+import ApexClean     from '!!raw-loader!@site/code/apex-global-context/apex_cleanup.plsql';
+import ApexInitLoad  from '!!raw-loader!@site/code/apex-global-context/apex_initial_load.plsql'; 
+import Verification  from '!!raw-loader!@site/code/apex-global-context/verification.plsql';  
+
+# Request-Scoped Global Context in APEX 23.1 (Oracle 19c+)
+
+:::info Related
+See [SQL Macros vs Global Context](./sqlMacro-vs-global-ctx) for a comparison of approaches.
+:::
+
+Apply per-user, per-page filters across pooled DB sessions and Ajax requests using a **Global Application Context** keyed by a canonical `client_id`. Values are read via `SYS_CONTEXT`, set in an APEX request initializer, and cleared on cleanup.
+
+## How It Works
+
+A global context stores key/value pairs in the SGA scoped by `CLIENT_IDENTIFIER`.`SYS_CONTEXT` reads values; `DBMS_SESSION.SET_CONTEXT` writes them; `DBMS_SESSION.CLEAR_CONTEXT` removes them. APEX runs Initialization and Cleanup PL/SQL at the start and end of **every** request — including Ajax — making this work consistently across pooled sessions.
+
+:::caution Ajax Gotcha
+`Before Header` and `After Regions` page processes **do not fire** on Ajax requests (filter/sort/partial refresh). For Ajax or mixed flows, always use **Shared Components → Security Attributes → Database Session**.
+:::
+
+:::caution Attribute name must match exactly
+The package uppercases attribute names. Make sure the string passed in when setting the attribute matches the string used in `SYS_CONTEXT`.
+Example:
+- Setter uses `'P_SALARY_IN'`
+- Reader uses `SYS_CONTEXT('TEST_APP_CTX','P_SALARY_IN')`
+:::
+
+## Prerequisites
+
+:::tip Create in this order
+1. Create the **context** first, bound to the trusted package.
+2. Create the **package** that calls `SET_CONTEXT` / `CLEAR_CONTEXT`.
+3. *(Optional)* Grant `EXECUTE` on the package to the APEX parsing schema.
+4. Use a consistent `client_id` pattern: `:APP_USER || ':AppName:PageId'`.
+
+Only the package named in `CREATE CONTEXT ... USING` can set attributes.
+:::
+
+## Database Setup
+
+<Tabs>
+  <TabItem value="context" label="1. Create Context" default>
+        <CodeBlock language="sql">{createCtx}</CodeBlock>
+        `ACCESSED GLOBALLY` stores attributes in the SGA and exposes them across sessions via `CLIENT_IDENTIFIER`. 
+  </TabItem>
+
+  <TabItem value="package" label="2. Create Package">
+        <CodeBlock language="plsql">{PkgSpec}</CodeBlock>
+        <CodeBlock language="plsql">{PkgBody}</CodeBlock>
+  </TabItem>
+</Tabs>
+
+## APEX Integration
+
+Configure **once per application** at: **Shared Components → Security Attributes → Database Session**.
+
+<Tabs>
+  <TabItem value="init" label="Initialization PL/SQL" default> 
+        <CodeBlock language="plsql">{ApexInit}</CodeBlock> 
+  </TabItem>
+
+  <TabItem value="cleanup" label="Cleanup PL/SQL"> 
+        <CodeBlock language="plsql">{ApexClean}</CodeBlock> 
+  </TabItem>
+
+  <TabItem value="initial-load" label="Initial Load (First GET)"> 
+        Seed a default context value on the **first page load** when items are NULL, so reports have a valid filter before the user submits anything. Place this block **before** any item-based checks.
+        <CodeBlock language="plsql">{ApexInitLoad}</CodeBlock>
+        :::note Alternative Approach
+        Use server-side conditions to **hide reports** until a page item is submitted, avoiding the need to seed a default value entirely.
+        :::
+  </TabItem>
+</Tabs>
+
+## Request Lifecycle
+
+Each browser interaction is an independent pipeline. Init and Cleanup behave like pre/post middleware wrapping every request.
+
+| Cycle | Phase | What Happens |
+|---|---|---|
+| GET (Show) | Pre-rendering | Runs before APEX builds HTML; same DB session as the render |
+| GET (Show) | Post-rendering | Runs after HTML is generated, still the same HTTP request |
+| POST (Submit) | On Submit | Separate HTTP request; APEX updates session state, then Submit processes run |
+| POST (Submit) | Re-render | Fresh GET cycle fires automatically after submit |
+
+:::note Key Point
+Physical DB sessions can change between requests due to connection pooling, but the **APEX session context persists**. Treat every request as independent middleware execution — the context values you set in Init will always be fresh.
+:::
+
+## Verification
+
+### Step 1 — DB Block
+
+Run directly in SQL Developer or SQL*Plus to confirm the context and package work independently of APEX.
+
+<CodeBlock language="plsql">{Verification}</CodeBlock> 
+
+### Step 2 — Parameterized View
+
+```sql
+CREATE OR REPLACE VIEW Custom_HR_CTX_V AS
+SELECT e.*
+FROM   hr.employees e
+WHERE  e.salary = TO_NUMBER(SYS_CONTEXT('TEST_APP_CTX', 'P_SALARY_IN')); 
+```
+
+Use this view in a Classic or Interactive Report region: `SELECT * FROM Custom_HR_CTX_V`.
+
+### Step 3 — Ajax Check
+
+Filter or sort the IR region. The Initialization PL/SQL fires on each Ajax request, so the context value is always current for the view.
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `ORA-01031` when setting context | Call is outside the bound package | Only the package in `CREATE CONTEXT ... USING` can set attributes. Create context **before** the package. |
+| Not visible in `V$GLOBALCONTEXT` | `CLIENT_IDENTIFIER` not set | Set it in the setter or earlier in the request |
+| Ajax not picking up context | Logic placed in `Before Header` process | Move to **Security Attributes → Database Session → Initialization PL/SQL** |
+| Unexpected values / session leaks | Case sensitivity | Use `UPPER()` for attribute names consistently across all calls |
+| Monitoring tools can't identify session | Custom code changed `CLIENT_IDENTIFIER` | Per APEX 24.1 Docs (Topic: **APEX session correlation** Section: **D.2**): leave `client_id` unchanged unless necessary |
+
+:::tip Quick DB Inspection
+```sql
+SELECT * FROM V$GLOBALCONTEXT;
+SELECT sid, client_identifier FROM V$SESSION;
+```
+:::
+
+## References
+
+| Topic | Source |
+|---|---|
+| GLOBAL_CONTEXT view | [Oracle DB 19c Reference](https://docs.oracle.com/en/database/oracle/oracle-database/19/refrn/GLOBAL_CONTEXT.html) |
+| Using Application Contexts | [Oracle Security Guide 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/dbseg/using-application-contexts-to-retrieve-user-information.html) |
+| DBMS_SESSION | [Oracle PL/SQL Packages 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SESSION.html) |
+| CREATE CONTEXT | [Oracle SQL Reference](https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/CREATE-CONTEXT.html) |
+| SYS_CONTEXT | [Oracle SQL Reference](https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/SYS_CONTEXT.html) |
+| APEX request hooks | [APEX 23.1 Dev Guide](https://docs.oracle.com/en/database/oracle/apex/23.1/htmdb/configuring-security-attributes.html) |
+| APEX session correlation | [APEX 24.1 Dev Guide](https://docs.oracle.com/en/database/oracle/apex/24.1/htmdb/correlating-apex-sessions-to-database-sessions.html) |
+
+<details className="codeDetails">
+  <summary>Deep Dive</summary>
+## Deep Dive
+
+### Execution Flow
+
+This is the detailed sequence that ties APEX requests to context-aware SQL. It applies to full page renders (GET), submits (POST), and Ajax refreshes.
+
+1. **Request begins (GET, POST, or Ajax)**
+   - APEX acquires a pooled DB session for this request.
+
+2. **Initialization PL/SQL runs (per request)**
+   - Compute a canonical `client_id` (example: `:APP_USER || ':AppName:XXX'`).
+   - If seeding defaults on first load, do it here (or in a `Before Header` process for the initial GET only).
+
+3. **Set request scope for visibility**
+   - A Global Application Context is keyed by `CLIENT_IDENTIFIER`.
+   - Ensure the DB session’s `CLIENT_IDENTIFIER` matches your canonical `client_id`: 
+        ```plsql 
+        DBMS_SESSION.SET_IDENTIFIER(client_id); 
+        ```
+
+* If you do not want to change APEX’s identifier, use the existing identifier as your key instead: 
+    ```plsql
+    client_id := SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER');
+    ```
+
+4. **Write context attributes**
+
+   * Call the trusted package to write values using `DBMS_SESSION.SET_CONTEXT`.
+   * Keep attribute names consistent across **writer** and **reader**. Pick one canonical name and reuse it exactly.
+
+5. **SQL executes**
+
+   * Regions, views, and queries run.
+   * `SYS_CONTEXT('TEST_APP_CTX', '<ATTRIBUTE>')` is evaluated and predicates apply.
+
+6. **APEX returns the response**
+
+   * HTML for GET, redirect/render for POST, JSON/partial HTML for Ajax.
+
+7. **Cleanup PL/SQL runs (per request)**
+
+   * Clear context for that `client_id` to prevent leakage across pooled sessions.
+ 
+
+### Performance Notes 
+
+- `SYS_CONTEXT` is a SQL function and can be used directly in `WHERE` clauses and views.
+- Index the **filtered table columns** normally (for example, `hr.employees.salary`), then validate the plan as usual with `EXPLAIN PLAN` (or your standard performance tooling).
+- Treat context values like request-scoped inputs. Keep conversions predictable:
+  - If the context value should be numeric, validate before converting (avoid runtime conversion errors).
+- Global Context does not change basic optimizer rules. It behaves like standard predicate evaluation, so measure and tune like any other filter.
+
+</details>

@@ -1,0 +1,220 @@
+---
+id: compare-tables
+title: Compare Tables / Rowsets — SQL Macro Utility
+sidebar_label: Compare Tables
+sidebar_position: 1
+description: >
+  SQL Macro utility for comparing two tables, views, or subqueries row-by-row.
+  Identifies inserts, deletes, and updates with optional primary key support.
+tags: [oracle, sql, plsql, sql-macro, db, compare, 19c]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+import CodeBlock from '@theme/CodeBlock';
+import SqmSpec   from '!!raw-loader!@site/code/compare_tables/sqm_util_spec.plsql';
+import SqmBody   from '!!raw-loader!@site/code/compare_tables/sqm_util_body.plsql';
+import CompareFn from '!!raw-loader!@site/code/compare_tables/compare_rowsets.plsql';
+
+# Compare Tables / Rowsets
+
+A **SQL Macro** utility that compares two tables, views, or named subqueries and returns a diff-style rowset. Identifies inserts, deletes, and updates — with or without a primary key.
+
+:::info Attribution
+Original design and implementation by **Stew Ashton**. Source articles:
+- [SQL Table Macros 6 — `sqm_util` package](https://stewashton.wordpress.com/2021/12/10/sql-table-macros-6-sqm_util-package/)
+- [SQL Table Macros 12 — Compare tables or queries](https://stewashton.wordpress.com/2022/02/14/sql-table-macros-12-compare-tables-or-queries/)
+- [SQL Table Macros 13 — Compare with primary key](https://stewashton.wordpress.com/2022/02/25/sql-table-macros-13-compare-with-primary-key/)
+
+This version contains **minimal changes to compile on Oracle 19c** (patched `NCHAR`/`CHAR` typecode handling and removed unsupported `TABLE_T` fields). All logic and design remain Stew Ashton's.
+:::
+
+:::info Environment
+| Attribute | Value |
+|---|---|
+| **DB Version** | Oracle 19c+ |
+| **Requires** | `DBMS_TF`, `DBMS_CRYPTO`, `JSON_OBJECT_T` |
+| **DML** | None — read-only |
+| **SQL Macro Type** | Table macro (`RETURN VARCHAR2 SQL_MACRO`) |
+:::
+
+***
+
+## How It Works
+
+Both `p_old_table` and `p_new_table` are `DBMS_TF.TABLE_T` parameters — the Oracle mechanism for passing a table or query into a SQL Macro by reference. The macro generates SQL at parse time using column metadata it reads from those parameters, so **the comparison query is built and optimized before execution**.
+
+The `sqm_util` package is the support layer. It reads `DBMS_TF.TABLE_T` column metadata and produces the correct string-conversion and comparison expressions per datatype (including LOBs via SHA-256 hash).
+
+### Output column `Z#_OP`
+
+| Value | Meaning |
+|---|---|
+| `I` | Row is **new** (present in `p_new_table`, absent in `p_old_table`) |
+| `D` | Row was **deleted** (present in `p_old_table`, absent in `p_new_table`) |
+| `U` | Row was **updated** — shows the **new** value |
+| `O` | Row was **updated** — shows the **old** value |
+
+`U` and `O` only appear when `p_key_cols` is supplied. Without a key, only `I` and `D` are returned, plus `Z#_CNT` showing the net row count difference per unique value set.
+
+### LOB Handling
+
+LOB columns (`CLOB`, `NCLOB`, `BLOB`) cannot be compared directly or used in `GROUP BY`. The package converts them to a **SHA-256 hash** (`DBMS_CRYPTO.HASH`) for comparison purposes. The comparison result reflects the hash, not the raw LOB value.
+
+***
+
+## Installation Order
+
+The three objects must be installed in this order — `sqm_util` spec and body first, then `compare_rowsets`:
+
+```
+1. clob_varray1_t   (TYPE)
+2. sqm_util         (PACKAGE spec)
+3. sqm_util         (PACKAGE body)
+4. compare_rowsets  (FUNCTION)
+```
+
+The file in the code repo contains all four in order and can be run as a single script in SQL Developer or `sqlplus`.
+
+***
+
+## Code
+
+<Tabs>
+  <TabItem value="type-spec" label="sqm_util — Spec" default>
+    <CodeBlock language="plsql">{SqmSpec}</CodeBlock>
+  </TabItem>
+  <TabItem value="body" label="sqm_util — Body">
+    <CodeBlock language="plsql">{SqmBody}</CodeBlock>
+  </TabItem>
+  <TabItem value="fn" label="compare_rowsets">
+    <CodeBlock language="plsql">{CompareFn}</CodeBlock>
+  </TabItem>
+</Tabs>
+
+***
+
+## Usage
+
+### Basic comparison (no key)
+
+Returns only `I` / `D` rows. `Z#_CNT` shows how many net rows differ per unique value set.
+
+```sql
+SELECT *
+FROM   compare_rowsets(
+           p_old_table => old_table_or_view,
+           p_new_table => new_table_or_view
+       )
+WHERE  z#_op IS NOT NULL;
+```
+
+### With primary key
+
+Returns `I`, `D`, `U` (new value), and `O` (old value) rows for each changed key.
+
+```sql
+SELECT *
+FROM   compare_rowsets(
+           p_old_table  => old_table_or_view,
+           p_new_table  => new_table_or_view,
+           p_key_cols   => columns(id_col)
+       )
+ORDER BY id_col, z#_op;
+```
+
+### Excluding columns
+
+Columns passed in `p_exclude_cols` are dropped from both comparison and output — useful for audit columns like `LAST_UPDATE_DATE` that will always differ.
+
+```sql
+SELECT *
+FROM   compare_rowsets(
+           p_old_table    => old_table_or_view,
+           p_new_table    => new_table_or_view,
+           p_key_cols     => columns(id_col),
+           p_exclude_cols => columns(last_update_date, last_updated_by)
+       )
+ORDER BY id_col, z#_op;
+```
+
+### Comparing subqueries
+
+The table macro accepts named subqueries via `WITH`. Both sides can be any query — they do not need to be base tables.
+
+```sql
+WITH
+  old_data AS (SELECT * FROM my_table WHERE status = 'ARCHIVED'),
+  new_data AS (SELECT * FROM my_table WHERE status = 'ACTIVE')
+SELECT *
+FROM   compare_rowsets(
+           p_old_table => old_data,
+           p_new_table => new_data,
+           p_key_cols  => columns(record_id)
+       );
+```
+
+***
+
+## Datatype Support
+
+`sqm_util` handles the full Oracle type map via an indexed constant lookup table keyed on `(type, charsetform)` from `DBMS_TF.TABLE_T`:
+
+| Type | Stringify Expression | Comparable Expression |
+|---|---|---|
+| `VARCHAR2`, `CHAR` | Direct (`%s`) | Direct |
+| `NVARCHAR2`, `NCHAR` | `TO_CHAR(%s)` | Direct |
+| `NUMBER`, `BINARY_FLOAT/DOUBLE` | `TO_CHAR(%s, 'TM')` | Direct |
+| `DATE`, `EDATE` | `TO_CHAR(%s, 'yyyy-mm-dd"T"hh24:mi:ss')` | Direct |
+| `TIMESTAMP` variants | `TO_CHAR(%s, 'fmyyyy-mm-dd...')` | Direct |
+| `RAW` | `RAWTOHEX(%s)` | Direct |
+| `CLOB`, `NCLOB` | `SUBSTR(%s, 1, 1000)` | SHA-256 hash |
+| `BLOB` | `RAWTOHEX(SUBSTRB(%s, 1, 1000))` | SHA-256 hash |
+| `XMLTYPE` | `(%s).getstringval()` | Same |
+| `JSON` | `JSON_SERIALIZE(%s)` | Same |
+| `UDT_OBJECT` | `JSON_OBJECT(%s)` | Same |
+| `UDT_NESTED`, `UDT_VARRAY` | `JSON_ARRAY(%s)` | Same |
+| `LONG`, `LONG RAW` | `'(LONG* unsupported)'` | Same |
+| `BFILE` | `sqm_util.get_bfile_info(%s)` | Same |
+
+***
+
+## 19c Patch Notes
+
+The original code targets Oracle 21c. Two changes were needed to compile on 19c:
+
+| Issue | Original | 19c Fix |
+|---|---|---|
+| `NCHAR`/`CHAR` typecode | Used typecode `96` with charsetforms `1`/`2` | 19c returns typecode `1` for `CHAR`; added typecode `1` entry in `ctaa_col_data` lookup table |
+| `TABLE_T` unsupported fields | Accessed `table_schema_name`, `table_name`, `schema_name`, `type_name` etc. | Commented out — these fields exist in the spec but are not populated in 19c and cause runtime errors |
+
+Both are structural workarounds only — no comparison logic was changed.
+
+***
+
+## `sqm_util` API Summary
+
+These are the procedures you may call directly when building your own SQL Macros on top of `sqm_util`:
+
+| Procedure / Function | Purpose |
+|---|---|
+| `col_data_records(p_table, pt_col_data)` | Fills a `tt_col_data` collection with per-column type metadata |
+| `col_data_strings(p_table, names, labels, to_strings, comparables, exclude)` | Fills all four comma-separated lists in one pass |
+| `col_column_names(p_table, names, exclude)` | Convenience — fills column names list only |
+| `col_to_strings(p_table, to_strings, exclude)` | Convenience — fills stringify expressions only |
+| `col_comparables(p_table, comparables, exclude)` | Convenience — fills comparable expressions only |
+| `list_columns(p_columns, list, template, delimiter, remove_quotes)` | Converts a `COLUMNS_T` to a delimited string; supports `%s` templates |
+| `get_table_t_json(p_table)` | SQL Macro — returns `TABLE_T` as a JSON CLOB (debugging) |
+| `get_table_t_flattened(p_table)` | SQL Macro — returns `TABLE_T` columns flattened via `JSON_TABLE` |
+
+***
+
+## Troubleshooting
+
+| Symptom | Likely Cause | Fix |
+|---|---|---|
+| `ORA-00904` on `Z#_OP` | Query not referencing result columns correctly | Wrap in outer `SELECT *` — SQL Macros inline; the `Z#_*` columns exist in the generated SQL |
+| `PLS-00302: DBMS_CRYPTO not found` | `EXECUTE` privilege missing | `GRANT EXECUTE ON SYS.DBMS_CRYPTO TO <schema>` |
+| `ORA-00600` or wrong results on NCHAR columns | Running on exact 19c where typecode `96` is returned | Confirm the 19c patch is applied — search for `96=>taa_col_data` in the body; it should still be present as a fallback |
+| `U`/`O` rows not appearing | `p_key_cols` not passed | `U`/`O` only emit when a key is supplied; without a key only `I`/`D` are returned |
+| LOB diff shows mismatch for identical values | Different internal LOB locators with same content | Expected — LOBs are hash-compared, so identical content produces the same hash and will **not** show as different |

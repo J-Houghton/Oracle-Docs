@@ -1,0 +1,615 @@
+---
+id: flex-util
+title: XXX_FLEX_UTIL -- Flexfield Explorer
+sidebar_label: Flex Util Package
+sidebar_position: 1
+description: >
+  Read-only EBS Flexfield utility for discovering and sampling DFF and KFF metadata.
+  Returns results as SYS_REFCURSOR, CLOB HTML, or DBMS_OUTPUT.
+tags: [oracle-ebs, plsql, flexfields, dff, kff, apex, r12]
+---
+
+import Tabs      from '@theme/Tabs';
+import TabItem   from '@theme/TabItem';
+import CodeBlock from '@theme/CodeBlock';
+import Verification from '!!raw-loader!@site/code/flex-util/verification.sql';
+import PkgSpec      from '!!raw-loader!@site/code/flex-util/xxx_flex_util_spec.plsql';
+import PkgBody      from '!!raw-loader!@site/code/flex-util/xxx_flex_util_body.plsql';
+
+import dffCtxTest        from '!!raw-loader!@site/code/flex-util/test_scripts/dff_context_col.plsql';
+import discoveryTest     from '!!raw-loader!@site/code/flex-util/test_scripts/discovery_kff_dff.plsql';
+import edgeCaseTest      from '!!raw-loader!@site/code/flex-util/test_scripts/edge_cases.plsql';
+import kffStrucTest      from '!!raw-loader!@site/code/flex-util/test_scripts/kff_structure_filter.plsql';
+
+# XXX\_FLEX\_UTIL\_PKG
+
+A read-only PL/SQL utility that introspects **Descriptive Flexfield (DFF)** and **Key Flexfield (KFF)** metadata from AOL FND tables. It dynamically builds labeled `SELECT` statements and returns results in three output modes.
+
+:::info Environment
+| Attribute | Value |
+|---|---|
+| **EBS Version** | R12.1, R12.2 |
+| **DB Version** | Oracle 19c (requires 12c+ for `FETCH FIRST`) |
+| **Schema** | Custom schema owner -- e.g. `XXCUST` |
+| **APEX Compatible** | APEX 24.2 Dynamic Content regions |
+| **DML** | None -- read-only |
+:::
+
+## Why This Package Exists
+
+Flexfield columns are stored as `ATTRIBUTE1`-`ATTRIBUTE30` in the database, with human-readable labels locked inside FND metadata. This package reads that metadata at runtime to:
+
+1. **Discover** which DFFs/KFFs are defined in your EBS instance and how many attributes each has.
+2. **Inspect** the column-to-label mapping for a specific DFF context or KFF structure.
+3. **Generate and execute** a fully-labeled `SELECT` against the actual base table.
+
+## Delivery Modes
+
+| Mode | Functions | Best For |
+|---|---|---|
+| `SYS_REFCURSOR` | `dff_list_rc`, `dff_attrs_rc`, `kff_list_rc`, `kff_segs_rc` | APEX Interactive Reports, SQL Developer Data Grid |
+| `CLOB` (SQL text) | `dff_sample_sql`, `kff_sample_sql` | Paste-ready queries, documentation |
+| `CLOB` (HTML) | `dff_sample_html`, `kff_sample_html` | APEX Dynamic Content regions |
+| `DBMS_OUTPUT` | `dff_data_out`, `kff_data_out` | SQL Developer Script Output tab |
+
+***
+
+## Installation
+
+### Prerequisites
+
+<CodeBlock language="sql">{Verification}</CodeBlock>
+
+### Deploy
+
+Run `install.sql` as the custom schema owner. The script uses `CREATE OR REPLACE` and is safe to re-run.
+
+<details className="codeDetails haveMaxHeight">
+    <summary>Package Spec</summary>
+        <CodeBlock language="plsql">{PkgSpec}</CodeBlock> 
+</details>
+ 
+<details className="codeDetails haveMaxHeight"> 
+    <summary>Package Body</summary>
+        <CodeBlock language="plsql">{PkgBody}</CodeBlock>
+</details>
+
+### Optional: APEX / Cross-Schema Access
+
+```sql
+GRANT EXECUTE ON XXX_FLEX_UTIL TO <apex_parsing_schema>;
+CREATE OR REPLACE PUBLIC SYNONYM XXX_FLEX_UTIL FOR xxcust.XXX_FLEX_UTIL;
+``` 
+
+***
+
+## API Reference -- DFF
+
+### `DFF_LIST_RC`
+
+Lists all custom DFF contexts across the instance. Excludes SRS (`$SRS$%`) parameter DFFs. By default filters out attributes created by seeded Oracle accounts.
+
+```plsql
+FUNCTION DFF_LIST_RC(
+    appShortName IN VARCHAR2 DEFAULT NULL,  -- Filter by app short name e.g. 'AR', 'ONT'
+    search       IN VARCHAR2 DEFAULT NULL,  -- LIKE filter on DFF name or title
+    showSystem   IN VARCHAR2 DEFAULT 'N'    -- 'Y' = include Oracle-seeded DFFs
+) RETURN SYS_REFCURSOR;
+```
+
+**Output columns**
+
+| Column | Description |
+|---|---|
+| `APPLICATION_ID` | FND application ID |
+| `DFF_NAME` | Internal DFF name |
+| `CONTEXT_CODE` | Context discriminator value |
+| `CONTEXT_NAME` | Display name (`Global Data Elements` for global context) |
+| `APP_NAME` | Application display name |
+| `APP_SHORT_NAME` | Application short name |
+| `BASE_TABLE` | Underlying database table |
+| `DFF_TITLE` | User-facing title |
+| `ATTR_COUNT` | Count of enabled attributes in this context |
+
+<Tabs>
+  <TabItem value="sqldev" label="SQL Developer" default>
+
+```plsql
+-- All custom DFFs in Accounts Receivable
+VAR rc REFCURSOR;
+BEGIN
+    :rc := xxcust.XXX_FLEX_UTIL.dff_list_rc(appShortName => 'AR');
+END;
+/
+PRINT rc;
+```
+
+  </TabItem>
+  <TabItem value="plsql" label="PL/SQL Block">
+
+```plsql
+DECLARE
+    rc       SYS_REFCURSOR;
+    dffName  VARCHAR2(100);
+    ctxCode  VARCHAR2(100);
+    baseTbl  VARCHAR2(100);
+    cnt      NUMBER;
+BEGIN
+    rc := xxcust.XXX_FLEX_UTIL.dff_list_rc(search => 'CUSTOMER');
+    LOOP
+        FETCH rc INTO dffName, ctxCode, baseTbl, cnt;
+        EXIT WHEN rc%NOTFOUND;
+        DBMS_OUTPUT.PUT_LINE(dffName || ' / ' || ctxCode || ' (' || cnt || ' attrs)');
+    END LOOP;
+    CLOSE rc;
+END;
+```
+
+  </TabItem>
+  <TabItem value="apex" label="APEX Region">
+
+Use in an **Interactive Report** with region source type set to **PL/SQL Function Body Returning SQL Query**.
+
+:::tip
+For APEX, `dff_sample_html` in a **Dynamic Content** region is often simpler than binding a `SYS_REFCURSOR` to an IR.
+:::
+
+  </TabItem>
+</Tabs>
+
+***
+
+### `DFF_ATTRS_RC`
+
+Returns the full attribute detail for one DFF -- column names, user labels, value sets, and audit info. Global Data Elements appear first, then context-specific attributes by sequence.
+
+```plsql
+FUNCTION DFF_ATTRS_RC(
+    dffName     IN VARCHAR2,
+    contextCode IN VARCHAR2 DEFAULT NULL  -- NULL returns ALL contexts
+) RETURN SYS_REFCURSOR;
+```
+
+**Output columns**
+
+| Column | Description |
+|---|---|
+| `CONTEXT_CODE` | Context discriminator value |
+| `CONTEXT_TYPE` | `'Global'` or `'Context'` |
+| `SEQ_NUM` | Display sequence |
+| `DB_COLUMN` | Physical column name (e.g. `ATTRIBUTE3`) |
+| `PROMPT` | Form left prompt / end-user label |
+| `ATTRIBUTE_NAME` | Internal attribute name |
+| `REQUIRED_FLAG` | `'Y'` / `'N'` |
+| `DEFAULT_VAL` | Default value if set |
+| `FLEX_VALUE_SET_NAME` | Assigned value set (nullable) |
+| `VALIDATION_TYPE` | Value set validation type (nullable) |
+| `CREATED` | `YYYY-MM-DD` creation date |
+| `CREATED_BY` | FND username of creator |
+
+```plsql
+VAR rc REFCURSOR;
+BEGIN
+    :rc := xxcust.XXX_FLEX_UTIL.dff_attrs_rc(
+               dffName     => 'RA_CUSTOMERS',
+               contextCode => NULL   -- all contexts
+           );
+END;
+/
+PRINT rc;
+```
+
+***
+
+### `DFF_SAMPLE_SQL`
+
+Generates a paste-ready, fully labeled `SELECT` for one DFF context. Columns are aliased with their FND prompt labels and tagged `[G]` (Global) or `[C]` (Context-specific). Appends audit columns if they exist on the base table.
+
+```plsql
+FUNCTION DFF_SAMPLE_SQL(
+    dffName     IN VARCHAR2,
+    contextCode IN VARCHAR2,
+    baseTable   IN VARCHAR2,
+    orderBy     IN VARCHAR2 DEFAULT 'Y'
+) RETURN CLOB;
+```
+
+:::warning Large Tables
+Set `orderBy => 'N'` for large Oracle-delivered tables like `GL_JE_LINES` or `GL_JE_HEADERS`. The default `ORDER BY CREATION_DATE DESC` causes a full-table sort on multi-million-row tables.
+:::
+
+**Sample output:**
+
+```sql
+-- Generated by XXX_FLEX_UTIL.DFF_SAMPLE_SQL
+-- DFF     : RA_CUSTOMERS
+-- Context : Global Data Elements
+-- Ctx Col : ATTRIBUTE_CATEGORY
+-- [G]=Global Data Elements  [C]=Context-specific
+SELECT
+    ATTRIBUTE1,  -- Customer Source [G]
+    ATTRIBUTE2,  -- Credit Rating [G]
+    TO_CHAR(CREATION_DATE, 'YYYY-MM-DD HH24:MI'),
+    TO_CHAR(CREATED_BY),
+    TO_CHAR(LAST_UPDATE_DATE, 'YYYY-MM-DD HH24:MI')
+FROM  HZ_CUST_ACCOUNTS
+WHERE ATTRIBUTE_CATEGORY = 'Global Data Elements'
+ORDER BY CREATION_DATE DESC
+FETCH FIRST 25 ROWS ONLY
+```
+
+```plsql
+DECLARE
+    l_sql CLOB;
+BEGIN
+    l_sql := xxcust.XXX_FLEX_UTIL.dff_sample_sql(
+                 dffName     => 'RA_CUSTOMERS',
+                 contextCode => 'Global Data Elements',
+                 baseTable   => 'HZ_CUST_ACCOUNTS'
+             );
+    -- CLOB may exceed single PUT_LINE; print in chunks
+    FOR i IN 0..TRUNC(DBMS_LOB.GETLENGTH(l_sql) / 20000) LOOP
+        DBMS_OUTPUT.PUT_LINE(DBMS_LOB.SUBSTR(l_sql, 20000, (i * 20000) + 1));
+    END LOOP;
+END;
+```
+
+***
+
+### `DFF_SAMPLE_HTML`
+
+Executes the DFF query and returns an HTML `<table>` with labeled headers. Targets APEX Dynamic Content regions using the `u-Report` CSS class.
+
+```plsql
+FUNCTION DFF_SAMPLE_HTML(
+    dffName     IN VARCHAR2,
+    contextCode IN VARCHAR2,
+    baseTable   IN VARCHAR2,
+    rows        IN NUMBER   DEFAULT 25,
+    orderBy     IN VARCHAR2 DEFAULT 'Y'
+) RETURN CLOB;
+```
+
+**APEX Dynamic Content setup:**
+
+1. Create a **Dynamic Content** region.
+2. Set source type to **PL/SQL Function Body**.
+3. Bind page items to parameters:
+
+```plsql
+RETURN xxcust.XXX_FLEX_UTIL.dff_sample_html(
+    dffName     => :P_DFF_NAME,
+    contextCode => :P_CONTEXT_CODE,
+    baseTable   => :P_BASE_TABLE,
+    rows        => 50,
+    orderBy     => 'Y'
+);
+```
+
+Errors are returned as inline HTML rather than raised exceptions:
+
+```html
+<!-- No data -->
+<p>No enabled attributes found for DFF [RA_CUSTOMERS] context [INVALID]</p>
+<!-- Runtime error -->
+<p style="color:red"><b>Error:</b> ORA-00942: table or view does not exist</p>
+```
+
+***
+
+### `DFF_DATA_OUT`
+
+SQL Developer console wrapper. Prints a fixed-width ASCII table via `DBMS_OUTPUT`. Calls `DBMS_OUTPUT.ENABLE(1000000)` automatically.
+
+```plsql
+PROCEDURE DFF_DATA_OUT(
+    dffName     IN VARCHAR2,
+    contextCode IN VARCHAR2,
+    baseTable   IN VARCHAR2,
+    rows        IN NUMBER   DEFAULT 25,
+    orderBy     IN VARCHAR2 DEFAULT 'Y'
+);
+```
+
+```plsql
+SET SERVEROUTPUT ON SIZE UNLIMITED
+BEGIN
+    xxcust.XXX_FLEX_UTIL.dff_data_out(
+        dffName     => 'RA_CUSTOMERS',
+        contextCode => 'Global Data Elements',
+        baseTable   => 'HZ_CUST_ACCOUNTS',
+        rows        => 10
+    );
+END;
+```
+
+**Sample output:**
+
+```
+================================================================================
+DFF: RA_CUSTOMERS  Context: Global Data Elements  Ctx Col: ATTRIBUTE_CATEGORY
+================================================================================
+Customer Source [G]           | Credit Rating [G]             | Creation Date    |
+--------------------------------------------------------------------------------
+DIRECT                        | A                             | 2023-04-15 09:22 |
+REFERRAL                      | B                             | 2023-03-01 14:05 |
+--------------------------------------------------------------------------------
+Rows: 2
+```
+
+:::note DBMS_OUTPUT Buffer
+The 1 MB buffer may truncate output for DFFs with many attributes and rows. Reduce `rows` or use `dff_sample_html` for large result sets.
+:::
+
+***
+
+## API Reference -- KFF
+
+### `KFF_LIST_RC`
+
+Lists all KFF structures with enabled segment counts.
+
+```plsql
+FUNCTION KFF_LIST_RC(
+    appShortName IN VARCHAR2 DEFAULT NULL,  -- e.g. 'SQLGL'
+    search       IN VARCHAR2 DEFAULT NULL   -- LIKE filter on code or name
+) RETURN SYS_REFCURSOR;
+```
+
+**Output columns**
+
+| Column | Description |
+|---|---|
+| `KFF_CODE` | KFF internal code (e.g. `GL#`, `MCAT`) |
+| `KFF_NAME` | KFF display name |
+| `STRUCTURE_NUM` | `id_flex_num` |
+| `STRUCTURE_CODE` | Structure internal code |
+| `STRUCTURE_NAME` | Structure display name |
+| `APP_NAME` / `APP_SHORT_NAME` | Application names |
+| `BASE_TABLE` | Combination table |
+| `SEG_COUNT` | Enabled segment count |
+
+**Common KFF codes**
+
+| Code | Name | Base Table |
+|---|---|---|
+| `GL#` | Accounting Flexfield | `GL_CODE_COMBINATIONS` |
+| `MCAT` | Item Categories | `MTL_CATEGORIES_B` |
+| `MTLL` | Item Catalogues | `MTL_ITEM_CATALOG_GROUPS_B` |
+| `AFF` | Asset Category | `FA_CATEGORIES_B` |
+| `GRP` | Sales Territory | `RA_TERRITORIES` |
+
+```plsql
+VAR rc REFCURSOR;
+BEGIN
+    :rc := xxcust.XXX_FLEX_UTIL.kff_list_rc(appShortName => 'SQLGL');
+END;
+/
+PRINT rc;
+```
+
+***
+
+### `KFF_SEGS_RC`
+
+Returns segment detail for one KFF -- column mappings, labels, value sets, and audit info.
+
+```plsql
+FUNCTION KFF_SEGS_RC(
+    kffCode       IN VARCHAR2,
+    structureCode IN VARCHAR2 DEFAULT NULL  -- NULL = all structures
+) RETURN SYS_REFCURSOR;
+```
+
+**Output columns**
+
+| Column | Description |
+|---|---|
+| `STRUCTURE_CODE` / `STRUCTURE_NAME` | Structure identifiers |
+| `SEQ_NUM` | Segment display sequence |
+| `DB_COLUMN` | Physical column (e.g. `SEGMENT1`) |
+| `SEGMENT_NAME` | Internal segment name |
+| `PROMPT` | Form left prompt |
+| `REQUIRED_FLAG` | `'Y'` / `'N'` |
+| `FLEX_VALUE_SET_NAME` | Assigned value set |
+| `VALIDATION_TYPE` | Value set validation type |
+| `CREATED` / `CREATED_BY` | Audit info |
+
+***
+
+### `KFF_SAMPLE_SQL`
+
+Generates a paste-ready `SELECT` for a KFF structure. Automatically resolves the structure discriminator column.
+
+```plsql
+FUNCTION KFF_SAMPLE_SQL(
+    kffCode       IN VARCHAR2,
+    structureCode IN VARCHAR2,
+    orderBy       IN VARCHAR2 DEFAULT 'Y'
+) RETURN CLOB;
+```
+
+:::info Structure Discriminator Logic
+The package resolves the `WHERE` clause filter in this priority order:
+1. `ID_FLEX_NUM` column on the base table
+2. `CHART_OF_ACCOUNTS_ID` (GL pattern for `GL_CODE_COMBINATIONS`)
+3. No filter applied -- `NOTE:` a comment is embedded in the output warning you to add your own filter
+:::
+
+***
+
+### `KFF_SAMPLE_HTML` and `KFF_DATA_OUT`
+
+Identical behavior to their DFF counterparts but for KFF structures.
+
+```plsql
+FUNCTION KFF_SAMPLE_HTML(
+    kffCode       IN VARCHAR2,
+    structureCode IN VARCHAR2,
+    rows          IN NUMBER   DEFAULT 25,
+    orderBy       IN VARCHAR2 DEFAULT 'Y'
+) RETURN CLOB;
+
+PROCEDURE KFF_DATA_OUT(
+    kffCode       IN VARCHAR2,
+    structureCode IN VARCHAR2,
+    rows          IN NUMBER   DEFAULT 25,
+    orderBy       IN VARCHAR2 DEFAULT 'Y'
+);
+```
+
+**APEX Dynamic Content:**
+
+```plsql
+RETURN xxcust.XXX_FLEX_UTIL.kff_sample_html(
+    kffCode       => :P_KFF_CODE,
+    structureCode => :P_STRUCTURE_CODE,
+    rows          => 50
+);
+```
+
+**SQL Developer console:**
+
+```plsql
+BEGIN
+    xxcust.XXX_FLEX_UTIL.kff_data_out(
+        kffCode       => 'GL#',
+        structureCode => 'ACME_COA',
+        rows          => 5,
+        orderBy       => 'N'  -- GL_CODE_COMBINATIONS is large; skip ORDER BY
+    );
+END;
+```
+
+***
+
+## Testing
+
+The test script validates all public functions. Enable `DBMS_OUTPUT` in SQL Developer before running any section. Sections are independent and can be run in any order.
+
+:::caution Values to Change Before Running
+| Placeholder | What to Replace With |
+|---|---|
+| `'XXX SYSTEM'` | A context code that exists on `GL_JE_LINES` in your instance |
+| `'Purchasing Additions'` | Another valid context code on `GL_JE_LINES` |
+| `'FND_FLEX_VALUES'` (Section 1c) | Any DFF name visible in your instance (`DFF_NAME` from `DFF_LIST_RC`) |
+| `'XXX_GL_PROGRAM'` | A context code for that DFF |
+| `'XXX_ACCOUNTING_FLEXFIELD'` | Your GL# structure code (`STRUCTURE_CODE` from `KFF_LIST_RC`) |
+
+Run the reference queries in **Sections 1d and 2d first** to discover valid values for your instance.
+:::
+
+<Tabs>
+    <TabItem value="s1" label="Section 1 -- DFF Context Column" default>
+        Verifies that `dff_data_out` resolves the correct context discriminator column (`CONTEXT` on `GL_JE_LINES`, not `ATTRIBUTE_CATEGORY`). 
+        <CodeBlock language="plsql">{dffCtxTest}</CodeBlock>
+    </TabItem>
+
+    <TabItem value="s2" label="Section 2 -- KFF Structure Filter">
+        Verifies `kff_segs_rc` and `kff_data_out` isolate one structure correctly. 
+        <CodeBlock language="plsql">{kffStrucTest}</CodeBlock>
+    </TabItem>
+
+    <TabItem value="s3" label="Sections 3-5 -- Discovery">
+        <CodeBlock language="plsql">{discoveryTest}</CodeBlock> 
+    </TabItem>
+
+    <TabItem value="s8" label="Section 8 -- Edge Cases">
+        <CodeBlock language="plsql">{edgeCaseTest}</CodeBlock> 
+    </TabItem>
+</Tabs>
+
+***
+
+## FND Object Dependencies
+
+```
+XXX_FLEX_UTIL
+├── DFF subsystem
+│   ├── FND_DESCRIPTIVE_FLEXS_VL        (DFF header, context column name)
+│   ├── FND_DESCR_FLEX_CONTEXTS_VL      (DFF context list)
+│   ├── FND_DESCR_FLEX_COLUMN_USAGES    (attribute-column mappings)
+│   └── FND_DESCR_FLEX_COL_USAGE_TL     (translated prompts, NLS join)
+│
+├── KFF subsystem
+│   ├── FND_ID_FLEXS                    (KFF header, base table name)
+│   ├── FND_ID_FLEX_STRUCTURES_VL       (structure → id_flex_num, names)
+│   └── FND_ID_FLEX_SEGMENTS_VL         (segment definitions, labels)
+│
+├── Shared
+│   ├── FND_FLEX_VALUE_SETS             (value set names / validation types)
+│   ├── FND_APPLICATION / _TL           (app names and NLS)
+│   └── FND_USER                        (system-account noise filter)
+│
+└── Oracle Built-ins
+    ├── DBMS_SQL                        (dynamic cursor execution)
+    ├── DBMS_OUTPUT                     (console delivery mode)
+    ├── ALL_TAB_COLUMNS                 (runtime column existence checks)
+    └── REGEXP_LIKE, USERENV('LANG'), SYS_REFCURSOR, CLOB
+```
+
+***
+
+## Portability Notes
+
+This package has **no network, file, or scheduler dependencies** -- no ACL grants, no wallet config, no UTL_FILE_DIR, and no concurrent manager context required.
+
+| Risk | Severity | Detail |
+|---|---|---|
+| `FETCH FIRST n ROWS ONLY` | 🔴 Breaks on Oracle < 12.1 | Replace with `WHERE ROWNUM <= n` for 11gR2 |
+| FND view grants | 🟡 Config required | All 12 FND objects must be `SELECT`-accessible from the running schema |
+| `USERENV('LANG')` NLS | 🟡 Instance-specific | Session language must match an installed `FND_LANGUAGES` entry; mismatches cause NULL prompts (falls back to internal names) |
+| `ALL_TAB_COLUMNS` visibility | 🟡 Schema-specific | Base tables must be visible from the custom schema or via `PUBLIC` synonyms |
+| `DBMS_OUTPUT` 1 MB cap | 🟢 Minor | Large results silently truncate; use `*_html` functions instead |
+| EBS 11i compatibility | 🟠 Untested | Some `FND_DESCR_FLEX_COL_USAGE_TL` columns differ in 11i; requires review |
+
+***
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Functions return no rows | Session NLS language not installed in FND | Set `NLS_LANGUAGE = AMERICAN` in your SQL client; verify with `SELECT USERENV('LANG') FROM dual` |
+| `ORA-00942` inside `*_sample_html` | Base table not visible from custom schema | Check `ALL_OBJECTS` for the table; grant `SELECT` or create a synonym |
+| Output truncated in SQL Developer | `DBMS_OUTPUT` 1 MB buffer exceeded | Reduce `rows` parameter or use `*_sample_html` for large result sets |
+| DFF list returns Oracle-seeded entries | `showSystem` is `'Y'` or custom attrs created as `SYSADMIN` | Pass `showSystem => 'N'` (default); if your custom attrs were made as SYSADMIN, pass `'Y'` |
+| KFF no structure filter applied | Base table has no `ID_FLEX_NUM` or `CHART_OF_ACCOUNTS_ID` | Check generated SQL for embedded `NOTE:` comment; add your own `WHERE` clause manually |
+
+***
+
+## Quick Reference
+
+```plsql
+-- ── DFF ─────────────────────────────────────────────────────────────────────
+-- Discover DFFs
+VAR rc REFCURSOR;
+EXEC :rc := xxcust.XXX_FLEX_UTIL.dff_list_rc('AR');
+PRINT rc;
+
+-- Inspect attributes for one DFF
+EXEC :rc := xxcust.XXX_FLEX_UTIL.dff_attrs_rc('RA_CUSTOMERS', NULL);
+PRINT rc;
+
+-- Print data to console
+EXEC xxcust.XXX_FLEX_UTIL.dff_data_out('RA_CUSTOMERS','Global Data Elements','HZ_CUST_ACCOUNTS',10);
+
+-- ── KFF ─────────────────────────────────────────────────────────────────────
+-- Discover KFF structures
+EXEC :rc := xxcust.XXX_FLEX_UTIL.kff_list_rc('SQLGL');
+PRINT rc;
+
+-- Inspect segments
+EXEC :rc := xxcust.XXX_FLEX_UTIL.kff_segs_rc('GL#', 'ACME_COA');
+PRINT rc;
+
+-- Print data to console
+EXEC xxcust.XXX_FLEX_UTIL.kff_data_out('GL#','ACME_COA',10,'N');
+```
+
+***
+
+## Changelog
+
+| Version | Date | Notes |
+|---|---|---|
+| 1.0.0 | 2026-03-04 | Initial release -- DFF + KFF explorer with three delivery modes |
