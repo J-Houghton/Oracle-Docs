@@ -1,0 +1,1 @@
+"use strict";(globalThis.webpackChunkoracle_docs=globalThis.webpackChunkoracle_docs||[]).push([[7956],{61(s){s.exports=JSON.parse('{"name":"docusaurus-plugin-content-docs","id":"oracleDocs"}')}}]);
