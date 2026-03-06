@@ -1,57 +1,245 @@
-/**
- * Any CSS included here will be global. The classic template
- * bundles Infima by default. Infima is a CSS framework designed to
- * work well for content-centric websites.
- */
+/* ═══════════════════════════════════════════════════════════════
+   FONTS
+   Without this @import, Inter/Poppins fall back to system fonts.
+   JetBrains Mono is added for SQL/PL/SQL code blocks.
+   ═══════════════════════════════════════════════════════════════ */
+   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Poppins:wght@600;700&display=swap');
 
-/* You can override the default Infima variables here. */
-:root {
-  --ifm-color-primary: #BF5AF2;
-  --ifm-color-primary-dark: #B145ED;
-  --ifm-color-primary-darker: #A536E8;
-  --ifm-color-primary-darkest: #8C1ECF;
-  --ifm-color-primary-light: #CA75F4;
-  --ifm-color-primary-lighter: #D690F7;
-  --ifm-color-primary-lightest: #E3B1FA;
 
-  --ifm-code-font-size: 95%;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
-  --ifm-font-family-base: 'Inter', sans-serif;
-  --ifm-heading-font-family: 'Poppins', sans-serif;
-}
+   /* ═══════════════════════════════════════════════════════════════
+      LIGHT MODE
+      :root applies when the user hasn't toggled dark mode.
+      These are CSS custom properties — think of them as named color
+      slots that Docusaurus (Infima) reads throughout the whole site.
+      ═══════════════════════════════════════════════════════════════ */
+   :root {
+     /* PRIMARY SCALE — 7 shades are required by Infima.
+        These drive links, active states, buttons, badges.
+        #512888 is the deep anchor. Light shades are used in dark mode. */
+     --ifm-color-primary:          #512888;
+     --ifm-color-primary-dark:     #4A2280;
+     --ifm-color-primary-darker:   #431E75;
+     --ifm-color-primary-darkest:  #321561;
+     --ifm-color-primary-light:    #6534A5;
+     --ifm-color-primary-lighter:  #7A44BD;
+     --ifm-color-primary-lightest: #9060D4;
+   
+     /* BACKGROUNDS
+        Docusaurus uses these two slots for the page and for
+        "surface" elements like the navbar, sidebar, and code blocks. */
+     --ifm-background-color:         #f6f1fa; /* faint lavender-white — not blinding */
+     --ifm-background-surface-color: #faf6ff;
+   
+     /* TEXT */
+     --ifm-font-color-base:         #1C1826; /* near-black with a purple tint */
+     --ifm-color-content-secondary: #6B6678; /* sidebar categories, captions */
+   
+     /* TYPOGRAPHY
+        These replace Docusaurus's default system font stack globally. */
+     --ifm-font-family-base:       'Inter', sans-serif;
+     --ifm-heading-font-family:    'Poppins', sans-serif;
+     --ifm-font-family-monospace:  'JetBrains Mono', 'Courier New', monospace;
+     --ifm-heading-font-weight:    600;
+     --ifm-font-size-base:         16px;
+     --ifm-code-font-size:         90%;
+     --ifm-line-height-base:       1.65;
+   
+     /* BORDERS & RADIUS */
+     --ifm-global-radius:         6px;
+     --ifm-color-emphasis-200:    #E8E2F2;
+     --ifm-color-emphasis-300:    #D8CFEB;
+   
+     /* NAVBAR
+        85% opacity lets page content faintly bleed through on scroll.
+        box-shadow is set to none — a 1px border-bottom is cleaner. */
+     --ifm-navbar-background-color: rgba(249, 247, 253, 0.85);
+     --ifm-navbar-shadow:           none;
+     --ifm-navbar-height:           56px;
+   
+     /* CODE BLOCK HIGHLIGHT — the stripe that marks a highlighted line */
+     --docusaurus-highlighted-code-line-bg: rgba(81, 40, 136, 0.08);
+   
+     /* CUSTOM TOKENS — used in homepage and sidebar overrides below */
+     --brand-surface-raised: #EAE0F5;
+     --brand-border:         #D0BEE8;
+     --brand-muted-text:     #9088A0;
+   }
+   
+   [data-theme='light'] .heroWrap {
+    background: radial-gradient(
+      ellipse 75% 55% at 50% 0%,
+      rgba(161, 99, 222, 0.13) 0%,
+      transparent 70%
+    );
+  }
+  
+  /* Aurora orbs: slightly stronger in light mode so they read through
+     the lighter background (dark mode uses 0.28 set previously) */
+  [data-theme='light'] .orb {
+    opacity: 0.55;
+  }
+  
+  /* Light mode sidebar — more visible active state against the bg */
+  [data-theme='light'] .menu__link--active:not(.menu__link--sublist) {
+    background: var(--brand-surface-raised);
+  }
+  
 
-/* For readability concerns, you should choose a lighter palette in dark mode. */
-[data-theme='dark'] {
-  --ifm-color-primary: #DFA9FF;
-  --ifm-color-primary-dark: #D38FFF;
-  --ifm-color-primary-darker: #C875FF;
-  --ifm-color-primary-darkest: #B352F8;
-  --ifm-color-primary-light: #E6BFFF;
-  --ifm-color-primary-lighter: #EED4FF;
-  --ifm-color-primary-lightest: #F6E9FF; 
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
-}
 
-/* Mermaid: scrollable container for large sequence diagrams */
-.mermaid {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
+   /* ═══════════════════════════════════════════════════════════════
+      DARK MODE
+      [data-theme='dark'] is added to <html> when dark mode is active.
+      Only override the values that need to change — everything else
+      inherits from :root above.
+      ═══════════════════════════════════════════════════════════════ */
+   [data-theme='dark'] {
+     /* PRIMARY SCALE — lavender reads clearly on dark surfaces.
+        #D6BEFA is your requested accent. Scale fans outward from it. */
+     --ifm-color-primary:          #D6BEFA;
+     --ifm-color-primary-dark:     #C4A5F5;
+     --ifm-color-primary-darker:   #B38EF0;
+     --ifm-color-primary-darkest:  #9B72E8;
+     --ifm-color-primary-light:    #E2CDFB;
+     --ifm-color-primary-lighter:  #EBE0FC;
+     --ifm-color-primary-lightest: #F4EEFF;
+   
+     /* BACKGROUNDS — violet-black tint makes the lavender feel native */
+     --ifm-background-color:         #0E0B14;
+     --ifm-background-surface-color: #16121F;
+   
+     /* TEXT */
+     --ifm-font-color-base:         #E8E2F2;
+     --ifm-color-content-secondary: #9088A0;
+   
+     /* BORDERS */
+     --ifm-color-emphasis-200: #2A2338;
+     --ifm-color-emphasis-300: #352D45;
+   
+     /* NAVBAR */
+     --ifm-navbar-background-color: rgba(22, 18, 31, 0.85);
+   
+     /* CODE BLOCK HIGHLIGHT */
+     --docusaurus-highlighted-code-line-bg: rgba(214, 190, 250, 0.10);
+   
+     /* CUSTOM TOKENS */
+     --brand-surface-raised: #1D1729;
+     --brand-border:         #2A2338;
+     --brand-muted-text:     #6B6078;
+   }
+   
+   
+   /* ═══════════════════════════════════════════════════════════════
+      NAVBAR
+      backdrop-filter creates the frosted-glass effect.
+      border-bottom replaces the default box-shadow.
+      ═══════════════════════════════════════════════════════════════ */
+   .navbar {
+     backdrop-filter: blur(14px);
+     -webkit-backdrop-filter: blur(14px);
+     background-color: var(--ifm-navbar-background-color);
+     border-bottom: 1px solid var(--brand-border);
+     box-shadow: none;
+   }
+   
+   .navbar__title {
+     font-family: var(--ifm-heading-font-family);
+     font-weight: 700;
+     letter-spacing: -0.02em;
+   }
+   
+   .navbar__link {
+     font-size: 0.875rem;
+     font-weight: 500;
+   }
+   
+   .navbar__link:hover,
+   .navbar__link--active {
+     color: var(--ifm-color-primary);
+   }
+   
+   
+   /* ═══════════════════════════════════════════════════════════════
+      SIDEBAR
+      Changes: tighter padding, uppercase category headers, left
+      accent bar on the active item (the key "app-like" visual cue).
+      ═══════════════════════════════════════════════════════════════ */
+   
+   /* Category group labels — ORACLE SQL, PL/SQL, etc. */
+   .menu__list-item-collapsible .menu__link,
+   .menu__list-item--collapsed .menu__link--sublist {
+     font-size: 0.72rem;
+     font-weight: 600;
+     letter-spacing: 0.09em;
+     text-transform: uppercase;
+     color: var(--brand-muted-text);
+   }
+   
+   /* Individual page links */
+   .menu__link {
+     font-size: 0.875rem;
+     padding: 5px 12px;
+     border-radius: 4px;
+     transition: background 140ms ease, color 140ms ease;
+   }
+   
+   .menu__link:hover {
+     background: var(--brand-surface-raised);
+     color: var(--ifm-color-primary);
+   }
+   
+   /* Active page — the left bar is the key visual */
+   .menu__link--active:not(.menu__link--sublist) {
+     background: var(--brand-surface-raised);
+     color: var(--ifm-color-primary);
+     font-weight: 500;
+     border-left: 2px solid var(--ifm-color-primary);
+     padding-left: 10px; /* 12px - 2px border = same visual indent */
+   }
+   
+    
+   /* ══════════════
+      MERMAID
+    ══════════════ */
+   .mermaid {
+     overflow-x: auto;
+     -webkit-overflow-scrolling: touch;
+   }
+   
+   .mermaid svg {
+     display: block;
+     max-width: none;
+     border: 1px solid var(--ifm-color-emphasis-300);
+     border-radius: var(--ifm-global-radius);
+     padding: 1rem;
+   }
+   
+   
+   /* ══════════════
+      CODE DETAILS 
+    ══════════════ */
+   .codeDetails {
+     background: #1e1e1e;
+     border: 1px solid #444;
+   }
+   
+   .codeDetails.haveMaxHeight .theme-code-block pre {
+     max-height: 500px;
+     border-radius: 6px;
+   }
+   
 
-/* Mermaid: visual boundary so diagrams don't float */
-.mermaid svg {
-  display: block;
-  max-width: none;  /* allow full width inside scroll container */
-  border: 1px solid var(--ifm-color-emphasis-300);
-  border-radius: var(--ifm-global-radius);
-  padding: 1rem;
-}
-
-.codeDetails {
-  background: #1e1e1e;
-  border: 1px solid #444;
-}
-.codeDetails.haveMaxHeight .theme-code-block pre {
-  max-height: 500px; 
-  border-radius: 6px;
-}
+   /* ═══════════════════════════════════════════════════════════════
+     FOOTER
+      ═══════════════════════════════════════════════════════════════ */
+   .footer {
+    background-color: var(--ifm-background-surface-color);
+    border-top: 1px solid var(--brand-border);
+    padding: 24px;
+  }
+  
+  .footer__copyright {
+    color: var(--brand-muted-text);
+    font-size: 0.8125rem;
+    text-align: center;
+    margin: 0;
+  }

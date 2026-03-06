@@ -10,8 +10,8 @@ import {themes as prismThemes} from 'prism-react-renderer';
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: 'Some Docs',
-  tagline: 'Dinosaurs are cool',
+  title: 'Oracle Dev Notes',
+  tagline: 'SQL · PL/SQL · APEX · EBS, and Dinosaurs are cool',
   favicon: 'img/favicon.ico',
 
   markdown: { mermaid: true },
@@ -88,8 +88,14 @@ const config = {
         config: {
             margin: 24,
         },
-    },
-    
+      },  
+      
+      colorMode: {
+        defaultMode: 'dark',
+        disableSwitch: false,
+        respectPrefersColorScheme: false,
+      },
+
       // Replace with your project's social card
       image: 'img/docusaurus-social-card.jpg',
       navbar: {
@@ -114,30 +120,8 @@ const config = {
           },
         ],
       }, 
-      footer: {
-        style: 'dark',
-        links: [
-          {
-            title: 'Docs',
-            items: [
-              {
-                label: 'Oracle Architecture',
-                to: '/docs-oracle/intro', // Points to oracle docs
-              },
-            ],
-          },
-          {
-            title: 'Community',
-            items: [
-              {
-                label: 'GitHub',
-                href: 'https://github.com/someUser/Oracle-Docs',
-              },
-            ],
-          },
-        ],
-        
-        copyright: `Copyright © ${new Date().getFullYear()} someUser, Inc. Built with Docusaurus.`,
+      footer: { 
+        copyright: `© ${new Date().getFullYear()} · Oracle Dev Notes`,
       },
       prism: {
         theme: prismThemes.github,
