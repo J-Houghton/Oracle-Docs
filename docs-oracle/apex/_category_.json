@@ -1,0 +1,8 @@
+{
+    "label": "Oracle APEX",
+    "position": 2,
+    "collapsible": true,
+    "collapsed": false,
+    "description": "APEX configuration, PL/SQL hooks, and session patterns."
+  }
+  

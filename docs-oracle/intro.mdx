@@ -1,0 +1,89 @@
+---
+id: oracle-docs-intro
+title: Oracle Docs
+description: Reference documentation for Oracle Database, APEX, and EBS R12 — covering SQL, PL/SQL, APEX configuration, and EBS customization patterns.
+sidebar_position: 1
+---
+
+# Oracle Docs
+
+Reference documentation spanning Oracle DB, APEX 23.1, and EBS R12.2 development. Pages frequently cross multiple layers — a single topic may touch SQL, PL/SQL, and APEX configuration together.
+
+:::tip How to Navigate
+Use the **sidebar categories** to browse by Oracle product. Use the **Tags** page (link in footer) to find docs by technology keyword across categories.
+:::
+
+<div style={{
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))',
+  gap: '1rem',
+  margin: '2rem 0'
+}}>
+
+<div style={{
+  background: 'var(--ifm-card-background-color)',
+  border: '1px solid var(--ifm-color-emphasis-300)',
+  borderRadius: 'var(--ifm-global-radius)',
+  padding: '1.25rem',
+}}>
+
+**🔐 Oracle APEX**
+
+Session-scoped context patterns for APEX apps using pooled DB connections and Ajax requests.
+
+- [Request-Scoped Global Context](./apex/oracle-apex-global-ctx)
+- [Request Flow Diagram](./apex/oracle-apex-global-ctx-flow)
+- [SQL Macros vs Global Context](./apex/sqlMacro-vs-global-ctx)
+
+<span style={{fontSize:'0.75rem', color:'var(--ifm-color-emphasis-600)'}}>
+  `Oracle 19c+` · `APEX 23.1` · `PL/SQL`
+</span>
+
+</div>
+
+<div style={{
+  background: 'var(--ifm-card-background-color)',
+  border: '1px solid var(--ifm-color-emphasis-300)',
+  borderRadius: 'var(--ifm-global-radius)',
+  padding: '1.25rem',
+}}>
+
+**📋 EBS R12**
+
+SQL queries and PL/SQL utilities for Oracle E-Business Suite R12.2 development and administration.
+
+- [Scheduled Concurrent Requests](./ebs/ebs-conc-requests)
+- [Flexfield Explorer Utility](./ebs/flex-util)
+
+<span style={{fontSize:'0.75rem', color:'var(--ifm-color-emphasis-600)'}}>
+  `EBS R12.2` · `SQL` · `PL/SQL` · `APEX 24.2`
+</span>
+
+</div>
+
+</div>
+
+## Tech Layers Covered
+
+These docs are written from a **full-stack Oracle** perspective. Most topics touch more than one layer:
+
+| Layer | What's Documented |
+|---|---|
+| **SQL** | Queries, views, CTEs, EBS table patterns |
+| **PL/SQL** | Packages, dynamic SQL, DBMS_SESSION, DBMS_SQL |
+| **Oracle APEX** | Security attributes, Ajax hooks, Dynamic Content regions |
+| **EBS R12** | FND metadata, concurrent manager, flexfields |
+
+## Tags Reference
+
+All pages are tagged by technology. Use tags to find cross-cutting topics quickly:
+
+| Tag | Pages using it |
+|---|---|
+| `oracle` | All pages |
+| `apex` | APEX Global Context, Flex Util |
+| `plsql` | Global Context, Flex Util |
+| `global-context` | APEX Global Context set |
+| `ebs` | EBS Concurrent Requests, Flex Util |
+| `sql` | EBS Concurrent Requests |
+| `kff` / `dff` | Flex Util |
